@@ -1,0 +1,35 @@
+from datetime import datetime
+from decimal import Decimal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.models import TransactionType
+
+
+class CustomerCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    phone: str | None = None
+
+
+class CustomerRead(CustomerCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    created_at: datetime
+
+
+class TransactionCreate(BaseModel):
+    customer_id: int
+    item: str | None = None
+    amount: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
+    type: TransactionType
+
+
+class TransactionRead(TransactionCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    created_at: datetime
+
+class BalanceRead(BaseModel):
+    customer_id: int
+    name: str
+    balance: Decimal
