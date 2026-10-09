@@ -114,6 +114,35 @@ def get_balance_by_name(db: Session, name: str) -> BalanceRead:
     )
 
 
+@dataclass
+class PaymentSummary:
+    customer: Customer
+    total: Decimal
+    count: int
+    recent: list[Transaction]
+
+
+def get_payments(db: Session, customer_name: str, limit: int = 5) -> PaymentSummary:
+    """How much a customer has paid back in total, plus their latest payments."""
+    customer = customers.get_customer_by_name(db, customer_name)
+    if customer is None:
+        raise CustomerNotFoundError(f"No customer named '{customer_name}'")
+
+    conditions = (
+        Transaction.customer_id == customer.id,
+        Transaction.type == TransactionType.payment,
+    )
+    total = db.scalar(select(func.coalesce(func.sum(Transaction.amount), 0)).where(*conditions))
+    count = db.scalar(select(func.count(Transaction.id)).where(*conditions))
+    recent = list(
+        db.scalars(
+            select(Transaction).where(*conditions)
+            .order_by(Transaction.created_at.desc()).limit(limit)
+        )
+    )
+    return PaymentSummary(customer=customer, total=_money(total), count=count, recent=recent)
+
+
 def get_top_debtors(db: Session, limit: int = 5) -> list[BalanceRead]:
     """Customers who owe money, biggest debt first. Zero/negative balances excluded."""
     owed = func.sum(_signed_amount())

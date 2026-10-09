@@ -4,3 +4,7 @@ sqlalchemy
 pydantic-settings
 pytest
 tzdata
+groq
+twilio
+python-multipart
+httpx

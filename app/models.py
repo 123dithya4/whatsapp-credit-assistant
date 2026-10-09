@@ -2,7 +2,7 @@ import enum
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String
+from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -39,3 +39,12 @@ class Transaction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     customer: Mapped["Customer"] = relationship(back_populates="transactions")
+
+
+class PendingConfirmation(Base):
+    __tablename__ = "pending_confirmations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sender: Mapped[str] = mapped_column(String(50), index=True)
+    payload: Mapped[str] = mapped_column(Text)  # JSON list of entries waiting for YES/NO
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

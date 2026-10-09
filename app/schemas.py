@@ -33,3 +33,24 @@ class BalanceRead(BaseModel):
     customer_id: int
     name: str
     balance: Decimal
+
+class RecordTransactionArgs(BaseModel):
+    customer: str = Field(min_length=1, max_length=100)
+    amount: Decimal = Field(gt=0)
+    type: TransactionType
+    item: str | None = None
+
+
+class GetBalanceArgs(BaseModel):
+    customer: str = Field(min_length=1, max_length=100)
+
+
+class GetTopDebtorsArgs(BaseModel):
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class NoArgs(BaseModel):
+    pass
+
+class GetPaymentsArgs(BaseModel):
+    customer: str = Field(min_length=1, max_length=100)
