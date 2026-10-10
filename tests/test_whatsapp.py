@@ -41,10 +41,23 @@ def test_valid_signature_accepted(client, monkeypatch):
     assert r.status_code == 200
 
 
-def test_voice_note_gets_placeholder(client, monkeypatch):
+def test_voice_note_is_handled(client, monkeypatch):
     monkeypatch.setattr(settings, "twilio_validate_signature", False)
-    r = client.post(URL, data={"Body": "", "NumMedia": "1", "From": "whatsapp:+911234567890"})
-    assert "Voice notes are coming soon" in r.text
+    monkeypatch.setattr(
+        "app.routes.whatsapp.reply_to_voice", lambda db, url, ctype, sender: "voice stub"
+    )
+    data = {
+        "Body": "", "NumMedia": "1", "From": "whatsapp:+911234567890",
+        "MediaUrl0": "https://api.twilio.com/media/x", "MediaContentType0": "audio/ogg",
+    }
+    assert "voice stub" in client.post(URL, data=data).text
+
+
+def test_non_audio_media_rejected(client, monkeypatch):
+    monkeypatch.setattr(settings, "twilio_validate_signature", False)
+    data = {"Body": "", "NumMedia": "1", "From": "whatsapp:+911234567890",
+            "MediaUrl0": "https://api.twilio.com/media/x", "MediaContentType0": "image/jpeg"}
+    assert "voice notes" in client.post(URL, data=data).text
 
 
 def test_welcome_greets_by_profile_name(client, monkeypatch):

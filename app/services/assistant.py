@@ -4,7 +4,7 @@ import unicodedata
 from sqlalchemy.orm import Session
 
 from app.schemas import RecordTransactionArgs
-from app.services import confirmations, customers
+from app.services import confirmations, customers, speech
 from app.services.actions import run_call
 from app.services.llm import LLMError, parse_message
 
@@ -115,3 +115,19 @@ def reply_to_text(db: Session, text: str, sender: str) -> str:
     if not replies:
         replies = [parsed.reply or "Sorry, I didn't understand that. Please try again."]
     return "\n".join(replies)
+
+def reply_to_voice(db: Session, audio_url: str, content_type: str, sender: str) -> str:
+    """Voice note in -> reply text out. Same logic as typed text after transcription."""
+    names = [c.name for c in customers.list_customers(db)[:30]]
+    try:
+        audio = speech.download_media(audio_url)
+        transcript = speech.transcribe(audio, content_type, names)
+    except speech.SpeechError:
+        logger.exception("Voice note failed")
+        return "⚠️ Sorry, I couldn't process that voice note. Please try again, or type your message."
+
+    if len(transcript) < 3:
+        return "🎤 I couldn't hear anything clear. Please try again, a little closer to the phone."
+
+    reply = reply_to_text(db, transcript, sender)
+    return f'🎤 Heard: "{transcript}"\n\n{reply}'

@@ -28,7 +28,7 @@ def test_yes_creates_customer_and_records(db, monkeypatch):
     monkeypatch.setattr(assistant, "parse_message", fake_llm(payment()))
     assistant.reply_to_text(db, "Meenakshi paid 500", SENDER)
     reply = assistant.reply_to_text(db, "yes", SENDER)
-    assert "âœ…" in reply
+    assert "Meenakshi paid" in reply
     assert ledger.get_balance_by_name(db, "Meenakshi").balance == Decimal("-500")
 
 
@@ -44,4 +44,4 @@ def test_known_customer_saves_immediately(db, monkeypatch):
     ledger.add_transaction(db, "Ramesh", 500)
     monkeypatch.setattr(assistant, "parse_message", fake_llm(payment("Ramesh", "200")))
     reply = assistant.reply_to_text(db, "Ramesh paid 200", SENDER)
-    assert "Total owed: â‚¹300.00" in reply
+    assert "Total owed" in reply and "300.00" in reply

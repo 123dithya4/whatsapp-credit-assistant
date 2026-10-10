@@ -9,7 +9,8 @@ from twilio.twiml.messaging_response import MessagingResponse
 
 from app.config import settings
 from app.database import get_db
-from app.services.assistant import reply_to_text
+from app.services import speech
+from app.services.assistant import reply_to_text, reply_to_voice
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 MAX_REPLY_CHARS = 1500  # WhatsApp via Twilio allows 1600; keep a margin
 
 EXAMPLES_TEXT = (
-    "Just tell me what happened, in your own words:\n\n"
+    "Type or send a 🎤 voice note, in your own words:\n\n"
     "*Add credit*\n"
     "_[customer] took [amount] rupees of [item] on credit_\n\n"
     "*Record a payment*\n"
@@ -42,7 +43,7 @@ def _welcome_messages(profile_name: str) -> tuple[str, str]:
     return greeting, EXAMPLES_TEXT
 
 
-VOICE_TEXT = "\U0001F3A4 Voice notes are coming soon. Please type your message for now."
+UNSUPPORTED_MEDIA_TEXT = "I can read text messages and voice notes. Please send one of those."
 
 
 def _twiml(*texts: str) -> Response:
@@ -76,8 +77,13 @@ async def whatsapp_webhook(request: Request, db: Session = Depends(get_db)):
     num_media = int(params.get("NumMedia") or 0)
     logger.info("WhatsApp message from ...%s (media=%s)", sender[-4:], num_media)
 
-    if num_media > 0 and not body:
-        return _twiml(VOICE_TEXT)
+    if num_media > 0:
+        media_type = str(params.get("MediaContentType0", ""))
+        media_url = str(params.get("MediaUrl0", ""))
+        if not speech.is_audio(media_type):
+            return _twiml(UNSUPPORTED_MEDIA_TEXT)
+        reply = await run_in_threadpool(reply_to_voice, db, media_url, media_type, sender)
+        return _twiml(reply)
     text = body.lower()
     if text == "help":
         return _twiml(EXAMPLES_TEXT)
