@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     twilio_account_sid: str = ""
     whisper_model: str = "whisper-large-v3"
     whisper_language: str = ""  # empty = auto-detect; set e.g. "hi" to force Hindi
+    whisper_allowed_languages: str = "english,en,hindi,hi,malayalam,ml,kannada,kn,tamil,ta"
+    whisper_fallback_language: str = "ml"
 
 
 settings = Settings()

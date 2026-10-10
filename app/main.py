@@ -4,7 +4,12 @@ from app import models  # noqa: F401  (registers the tables)
 from app.database import Base, engine
 from app.routes import assistant, customers, transactions, whatsapp
 
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
+
 Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI(title="WhatsApp Credit Assistant")
 

@@ -55,3 +55,27 @@ def test_download_rejects_non_twilio_host():
 def test_is_audio():
     assert speech.is_audio("audio/ogg")
     assert not speech.is_audio("image/jpeg")
+
+from types import SimpleNamespace
+
+
+def test_unsupported_detected_language_is_retried(monkeypatch):
+    calls = []
+
+    class FakeTranscriptions:
+        def create(self, **kw):
+            calls.append(kw.get("language"))
+            if kw.get("language") == "ml":
+                return SimpleNamespace(text="Haritha rice 300", language="malayalam")
+            return SimpleNamespace(text="garbage", language="sinhala")
+
+    class FakeGroq:
+        def __init__(self, api_key):
+            self.audio = SimpleNamespace(transcriptions=FakeTranscriptions())
+
+    monkeypatch.setattr(speech, "Groq", FakeGroq)
+    monkeypatch.setattr(speech.settings, "groq_api_key", "x")
+    monkeypatch.setattr(speech.settings, "whisper_language", "")
+
+    assert speech.transcribe(b"a", "audio/ogg") == "Haritha rice 300"
+    assert calls == [None, "ml"]

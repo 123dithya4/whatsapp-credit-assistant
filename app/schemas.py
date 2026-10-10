@@ -54,3 +54,14 @@ class NoArgs(BaseModel):
 
 class GetPaymentsArgs(BaseModel):
     customer: str = Field(min_length=1, max_length=100)
+
+class GetTopPayersArgs(BaseModel):
+    limit: int = Field(default=5, ge=1, le=20)
+
+class RawTransactionArgs(BaseModel):
+    """What the LLM extracted. Every field may be missing; Python decides what to do about it."""
+    customer: str | None = None
+    amount: Decimal | None = None
+    amount_quote: str | None = None
+    type: str | None = None
+    item: str | None = None

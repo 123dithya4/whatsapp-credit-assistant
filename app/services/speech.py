@@ -51,11 +51,10 @@ def download_media(url: str) -> bytes:
 
 
 def _build_prompt(names) -> str:
-    """Whisper uses this as a spelling hint. Known customer names improve accuracy."""
-    prompt = "Shop credit ledger. Words: rupees, credit, udhaar, paid, owes."
-    if names:
-        prompt += " Customers: " + ", ".join(names) + "."
-    return prompt[:600]
+    """Whisper uses this as a spelling hint. Only customer names, no English words."""
+    if not names:
+        return ""
+    return ("Customers: " + ", ".join(names) + ".")[:600]
 
 
 def transcribe(audio: bytes, content_type: str, hint_names=()) -> str:
@@ -65,20 +64,34 @@ def transcribe(audio: bytes, content_type: str, hint_names=()) -> str:
     if not settings.groq_api_key:
         raise SpeechError("GROQ_API_KEY is not set")
 
-    options = {}
-    if settings.whisper_language:
-        options["language"] = settings.whisper_language
+    client = Groq(api_key=settings.groq_api_key)
+    prompt = _build_prompt(hint_names)
 
-    try:
-        result = Groq(api_key=settings.groq_api_key).audio.transcriptions.create(
+    def run(language: str | None = None):
+        extra = {"language": language} if language else {}
+        if prompt:
+            extra["prompt"] = prompt
+        return client.audio.transcriptions.create(
             file=(f"voice.{ext}", audio),
             model=settings.whisper_model,
-            prompt=_build_prompt(hint_names),
-            response_format="json",
+            response_format="verbose_json",
             temperature=0.0,
-            **options,
+            **extra,
         )
+
+    try:
+        if settings.whisper_language:  # a forced language always wins
+            return (run(settings.whisper_language).text or "").strip()
+
+        result = run()
+        detected = (getattr(result, "language", "") or "").strip().lower()
+        allowed = {x.strip().lower() for x in settings.whisper_allowed_languages.split(",") if x.strip()}
+        logger.info("Whisper detected language: %r", detected)
+
+        if detected and allowed and detected not in allowed and settings.whisper_fallback_language:
+            logger.info("%r is not an allowed language, retrying as %s",
+                        detected, settings.whisper_fallback_language)
+            result = run(settings.whisper_fallback_language)
+        return (result.text or "").strip()
     except GroqError as exc:
         raise SpeechError(f"Transcription failed: {exc}") from exc
-
-    return (result.text or "").strip()

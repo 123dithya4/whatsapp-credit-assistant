@@ -10,7 +10,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 from app.config import settings
 from app.database import get_db
 from app.services import speech
-from app.services.assistant import reply_to_text, reply_to_voice
+from app.services.assistant import EMPTY_TEXT, reply_to_text, reply_to_voice
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
@@ -28,6 +28,7 @@ EXAMPLES_TEXT = (
     "_Who owes me the most?_\n"
     "_Show today's transactions_\n\n"
     "Type *help* anytime to see this again."
+    "_Who paid the most?_\n"
 )
 
 
@@ -64,6 +65,15 @@ def _verify_signature(request: Request, params: dict) -> None:
     if not RequestValidator(settings.twilio_auth_token).validate(url, params, signature):
         raise HTTPException(status_code=403, detail="Invalid Twilio signature")
 
+async def _safe_reply(db: Session, func, *args) -> str:
+    """Run the handler off the event loop; never let an unexpected error reach Twilio as a 500."""
+    try:
+        return await run_in_threadpool(func, db, *args)
+    except Exception:
+        logger.exception("Unhandled error while handling a WhatsApp message")
+        db.rollback()
+        return "⚠️ Something went wrong on my side. Please try again in a minute."
+
 
 @router.post("/webhook")
 async def whatsapp_webhook(request: Request, db: Session = Depends(get_db)):
@@ -82,14 +92,16 @@ async def whatsapp_webhook(request: Request, db: Session = Depends(get_db)):
         media_url = str(params.get("MediaUrl0", ""))
         if not speech.is_audio(media_type):
             return _twiml(UNSUPPORTED_MEDIA_TEXT)
-        reply = await run_in_threadpool(reply_to_voice, db, media_url, media_type, sender)
+        reply = await _safe_reply(db, reply_to_voice, media_url, media_type, sender)
         return _twiml(reply)
     text = body.lower()
     if text == "help":
         return _twiml(EXAMPLES_TEXT)
-    if not body or text in {"hi", "hello", "start"}:
+    if text in {"hi", "hello", "start"}:
         return _twiml(*_welcome_messages(profile_name))
+    if not body:
+        return _twiml(EMPTY_TEXT)
 
     # Groq + database calls are blocking, so run them off the event loop
-    reply = await run_in_threadpool(reply_to_text, db, body, sender)
+    reply = await _safe_reply(db, reply_to_text, body, sender)
     return _twiml(reply)

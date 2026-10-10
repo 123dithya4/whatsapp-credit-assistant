@@ -14,6 +14,7 @@ from app.services import customers
 LOCAL_TZ = ZoneInfo("Asia/Kolkata")
 MAX_AMOUNT = Decimal("1000000")  # sanity cap: catches speech-to-text mishearings
 CENT = Decimal("0.01")
+DUPLICATE_WINDOW = timedelta(minutes=3)
 
 
 # ---------- errors ----------
@@ -159,6 +160,37 @@ def get_top_debtors(db: Session, limit: int = 5) -> list[BalanceRead]:
         for cid, name, total in db.execute(stmt)
     ]
 
+def get_top_payers(db: Session, limit: int = 5) -> list[tuple[str, Decimal]]:
+    """Customers who have paid back the most in total, biggest first."""
+    total = func.sum(Transaction.amount)
+    stmt = (
+        select(Customer.name, total)
+        .join(Transaction, Transaction.customer_id == Customer.id)
+        .where(Transaction.type == TransactionType.payment)
+        .group_by(Customer.id, Customer.name)
+        .order_by(total.desc())
+        .limit(limit)
+    )
+    return [(name, _money(amount)) for name, amount in db.execute(stmt)]
+
+def find_recent_duplicate(db: Session, customer_id: int, type_: TransactionType,
+                          amount, item: str | None) -> Transaction | None:
+    """An identical entry saved within the last few minutes (probably a double send)."""
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - DUPLICATE_WINDOW
+    stmt = (
+        select(Transaction)
+        .where(
+            Transaction.customer_id == customer_id,
+            Transaction.type == type_,
+            Transaction.created_at >= cutoff,
+        )
+        .order_by(Transaction.created_at.desc())
+    )
+    wanted_item = (item or "").strip().lower()
+    for txn in db.scalars(stmt):
+        if _money(txn.amount) == _money(amount) and (txn.item or "").lower() == wanted_item:
+            return txn
+    return None
 
 def get_today_transactions(db: Session) -> list[Transaction]:
     """Transactions since midnight in the shop's local time (IST), newest first."""

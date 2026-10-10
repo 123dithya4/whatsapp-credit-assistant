@@ -22,6 +22,7 @@ def handle_message(body: MessageIn, db: Session = Depends(get_db)):
 
     replies = [run_call(db, c.name, c.args) for c in parsed.calls]
     replies += [f"⚠️ {e}" for e in parsed.errors]
+    replies += [f"❓ {c.question}" for c in parsed.clarifications]
     if not replies:
         replies = [parsed.reply or "Sorry, I didn't understand that. Please try again."]
 

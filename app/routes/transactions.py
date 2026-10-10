@@ -8,6 +8,7 @@ from app.services import customers, transactions
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 
+
 @router.post("", response_model=TransactionRead, status_code=201)
 def add_transaction(data: TransactionCreate, db: Session = Depends(get_db)):
     if customers.get_customer(db, data.customer_id) is None:

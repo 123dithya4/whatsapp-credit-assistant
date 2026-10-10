@@ -45,3 +45,8 @@ def test_known_customer_saves_immediately(db, monkeypatch):
     monkeypatch.setattr(assistant, "parse_message", fake_llm(payment("Ramesh", "200")))
     reply = assistant.reply_to_text(db, "Ramesh paid 200", SENDER)
     assert "Total owed" in reply and "300.00" in reply
+
+
+def test_stray_yes_gets_helpful_reply(db):
+    reply = assistant.reply_to_text(db, "yes", SENDER)
+    assert "nothing waiting" in reply

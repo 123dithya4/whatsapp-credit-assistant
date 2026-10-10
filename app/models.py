@@ -48,3 +48,12 @@ class PendingConfirmation(Base):
     sender: Mapped[str] = mapped_column(String(50), index=True)
     payload: Mapped[str] = mapped_column(Text)  # JSON list of entries waiting for YES/NO
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PendingClarification(Base):
+    __tablename__ = "pending_clarifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sender: Mapped[str] = mapped_column(String(50), index=True)
+    original_text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

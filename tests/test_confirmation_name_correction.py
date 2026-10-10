@@ -43,6 +43,7 @@ def test_new_command_is_not_mistaken_for_a_name(db, monkeypatch):
     monkeypatch.setattr(assistant, "parse_message", fake_llm(payment()))
     assistant.reply_to_text(db, "Meenakshi paid 500", SENDER)
 
-    monkeypatch.setattr(assistant, "parse_message", lambda text: ParsedMessage(reply="LLM was called"))
-    reply = assistant.reply_to_text(db, "Show today's transactions", SENDER)
-    assert reply == "LLM was called"
+    seen = []
+    monkeypatch.setattr(assistant, "parse_message", lambda text: seen.append(text) or ParsedMessage())
+    assistant.reply_to_text(db, "Show today's transactions", SENDER)
+    assert seen == ["Show today's transactions"]
