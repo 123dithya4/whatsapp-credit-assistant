@@ -15,6 +15,7 @@ from app.schemas import (
     NoArgs,
     RecordTransactionArgs,
     RawTransactionArgs,
+    GetOverdueArgs,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ QUESTIONS -> never call record_transaction:
 - Who owes the most / biggest debtors -> get_top_debtors
 - Who paid the most / who gave me the most money -> get_top_payers
 - Today's entries / what happened today -> get_today_transactions
+- Who is overdue / who has not paid for a long time / payment pending for many days -> get_overdue
 
 OTHER:
 - If the message is a question or request that no tool can answer, or is unrelated to the shop ledger, call unsupported_request.
@@ -138,6 +140,23 @@ TOOLS = [
             "parameters": {"type": "object", "properties": {}},
         },
     },
+
+        {
+        "type": "function",
+        "function": {
+            "name": "get_overdue",
+            "description": "List customers whose unpaid balance has been waiting for a long time (overdue).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "days": {
+                        "type": ["integer", "null"],
+                        "description": "Minimum days overdue. Use null or omit this field to use the configured default.",
+                    }
+                },
+            },
+        },
+    },
 ]
 
 ARG_MODELS: dict[str, type[BaseModel]] = {
@@ -148,6 +167,7 @@ ARG_MODELS: dict[str, type[BaseModel]] = {
     "get_today_transactions": NoArgs,
     "get_top_payers": GetTopPayersArgs,
     "unsupported_request": NoArgs,
+    "get_overdue": GetOverdueArgs,
 }
 
 

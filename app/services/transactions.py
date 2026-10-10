@@ -240,3 +240,44 @@ def delete_transaction(db: Session, transaction_id: int) -> bool:
     db.delete(txn)
     db.commit()
     return True
+
+@dataclass
+class OverdueBalance:
+    customer_id: int
+    name: str
+    balance: Decimal
+    oldest_unpaid: datetime
+    days: int
+
+
+def _oldest_unpaid(txns: list[Transaction]) -> datetime | None:
+    """Payments are applied to the oldest credits first. Returns when the oldest
+    credit that is still (partly) unpaid was given."""
+    paid = sum((t.amount for t in txns if t.type == TransactionType.payment), Decimal("0"))
+    for t in txns:  # oldest first
+        if t.type != TransactionType.credit:
+            continue
+        if paid >= t.amount:
+            paid -= t.amount
+        else:
+            return t.created_at
+    return None
+
+
+def get_overdue(db: Session, min_days: int = 7, now: datetime | None = None) -> list[OverdueBalance]:
+    """Customers who still owe money and whose oldest unpaid credit is at least min_days old."""
+    now = now or datetime.now(timezone.utc)
+    result = []
+    for customer in customers.list_customers(db):
+        balance = get_balance(db, customer.id)
+        if balance <= 0:
+            continue
+        since = _oldest_unpaid(list_transactions(db, customer.id))
+        if since is None:
+            continue
+        if since.tzinfo is None:
+            since = since.replace(tzinfo=timezone.utc)
+        days = (now - since).days
+        if days >= min_days:
+            result.append(OverdueBalance(customer.id, customer.name, balance, since, days))
+    return sorted(result, key=lambda o: o.days, reverse=True)

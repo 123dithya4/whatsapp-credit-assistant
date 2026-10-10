@@ -65,3 +65,6 @@ class RawTransactionArgs(BaseModel):
     amount_quote: str | None = None
     type: str | None = None
     item: str | None = None
+
+class GetOverdueArgs(BaseModel):
+    days: int | None = Field(default=None, ge=1, le=365)

@@ -11,8 +11,10 @@ from app.schemas import (
     GetTopDebtorsArgs,
     GetTopPayersArgs,
     RecordTransactionArgs,
+    GetOverdueArgs,
 )
 from app.services import transactions as ledger
+from app.config import settings
 
 
 def _rs(value: Decimal) -> str:
@@ -33,6 +35,18 @@ def _owed_text(balance: Decimal) -> str:
     if balance < 0:
         return f"Advance paid: {_rs(-balance)}"
     return f"Total owed: {_rs(balance)}"
+
+def format_overdue(overdue, min_days: int) -> str:
+    shown = overdue[:10]
+    lines = [
+        f"{i}. {o.name} — {_rs(o.balance)} ({o.days} day{'s' if o.days != 1 else ''})"
+        for i, o in enumerate(shown, 1)
+    ]
+    if len(overdue) > len(shown):
+        lines.append(f"...and {len(overdue) - len(shown)} more")
+    total = sum((o.balance for o in overdue), Decimal("0"))
+    return (f"⏰ Overdue balances ({min_days}+ days)\n" + "\n".join(lines)
+            + f"\n\nTotal overdue: {_rs(total)}")
 
 
 def _local_date(dt) -> str:
@@ -115,6 +129,14 @@ def run_call(db: Session, name: str, args: BaseModel) -> str:
                 "Today's entries:\n" + "\n".join(lines)
                 + f"\nGiven on credit: {_rs(given)} | Received: {_rs(received)}"
             )
+
+        if name == "get_overdue":
+            assert isinstance(args, GetOverdueArgs)
+            days = args.days if args.days is not None else settings.reminder_after_days
+            overdue = ledger.get_overdue(db, days)
+            if not overdue:
+                return f"No balances are overdue by {days}+ days."
+            return format_overdue(overdue, days)
 
         if name == "unsupported_request":
             return UNSUPPORTED_TEXT

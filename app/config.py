@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     whisper_language: str = ""  # empty = auto-detect; set e.g. "hi" to force Hindi
     whisper_allowed_languages: str = "english,en,hindi,hi,malayalam,ml,kannada,kn,tamil,ta"
     whisper_fallback_language: str = "ml"
+    twilio_whatsapp_from: str = "whatsapp:+14155238886"
+    owner_whatsapp: str = ""
+    reminders_enabled: bool = False
+    reminder_hour: int = 9
+    reminder_minute: int = 0
+    reminder_after_days: int = 7
 
 
 settings = Settings()
