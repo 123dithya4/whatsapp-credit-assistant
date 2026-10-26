@@ -8,11 +8,12 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(
 from app import models  # noqa: E402,F401  (registers the tables)
 from app.config import settings  # noqa: E402
 from app.database import Base, engine  # noqa: E402
-from app.routes import assistant, customers, transactions, whatsapp  # noqa: E402
+from app.routes import assistant, customers, dashboard, transactions, whatsapp  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 Base.metadata.create_all(bind=engine)
+
 
 
 @asynccontextmanager
@@ -34,6 +35,7 @@ app = FastAPI(title="WhatsApp Credit Assistant", lifespan=lifespan)
 
 app.include_router(assistant.router)
 app.include_router(customers.router)
+app.include_router(dashboard.router)
 app.include_router(transactions.router)
 app.include_router(whatsapp.router)
 

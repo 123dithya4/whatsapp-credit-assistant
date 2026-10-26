@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     reminder_hour: int = 9
     reminder_minute: int = 0
     reminder_after_days: int = 7
+    dashboard_token: str = ""
 
 
 settings = Settings()

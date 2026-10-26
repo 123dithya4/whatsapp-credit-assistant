@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Credit Book Dashboard</title>
+<style>
+  :root {
+    --bg:#f6f7f9; --card:#ffffff; --text:#1c2230; --muted:#6b7385; --line:#e6e9ef;
+    --owe:#c2410c; --paid:#15803d; --bar:#f59e0b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151c; --card:#1b2029; --text:#e8ebf2; --muted:#98a1b5; --line:#2a3140;
+            --owe:#fb923c; --paid:#4ade80; --bar:#f59e0b; }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background:var(--bg); color:var(--text); }
+  header { display:flex; justify-content:space-between; align-items:center;
+           padding:16px 20px; max-width:1100px; margin:0 auto; }
+  h1 { font-size:1.2rem; margin:0; }
+  h2 { font-size:.95rem; margin:0 0 12px; }
+  .muted { color:var(--muted); font-size:.85rem; }
+  button { font:inherit; padding:7px 14px; border-radius:8px; border:1px solid var(--line);
+           background:var(--card); color:var(--text); cursor:pointer; }
+  main { max-width:1100px; margin:0 auto; padding:0 16px 40px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:12px; }
+  .stat .label { color:var(--muted); font-size:.8rem; }
+  .stat .value { font-size:1.7rem; font-weight:650; margin-top:4px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+  @media (max-width: 800px) { .grid { grid-template-columns:1fr; } }
+  table { width:100%; border-collapse:collapse; font-size:.9rem; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:500; font-size:.78rem; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .badge { padding:2px 8px; border-radius:999px; font-size:.75rem; }
+  .badge.credit { background:rgba(245,158,11,.18); color:var(--owe); }
+  .badge.payment { background:rgba(34,197,94,.18); color:var(--paid); }
+  .debtor { margin-bottom:12px; }
+  .debtor .row { display:flex; justify-content:space-between; font-size:.9rem; }
+  .track { height:8px; background:var(--line); border-radius:999px; margin-top:5px; overflow:hidden; }
+  .fill { height:100%; background:var(--bar); border-radius:999px; }
+  .scroll { max-height:360px; overflow:auto; }
+  input { font:inherit; padding:8px 10px; border-radius:8px; border:1px solid var(--line);
+          background:var(--bg); color:var(--text); width:100%; }
+  #login { max-width:360px; margin:12vh auto; }
+  .error { color:var(--owe); margin:8px 0; font-size:.85rem; min-height:1.2em; }
+  .empty { color:var(--muted); font-size:.9rem; }
+</style>
+</head>
+<body>
+
+<div id="login" class="card" hidden>
+  <h2>Credit Book Dashboard</h2>
+  <p class="muted">Enter the dashboard token from your .env file.</p>
+  <input id="token" type="password" placeholder="Dashboard token" autocomplete="off">
+  <p id="loginError" class="error"></p>
+  <button id="loginBtn">Open dashboard</button>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <div>
+      <h1>&#128210; Credit Book</h1>
+      <div id="updated" class="muted"></div>
+    </div>
+    <div>
+      <button id="refreshBtn">Refresh</button>
+      <button id="logoutBtn">Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="stats">
+      <div class="card stat"><div class="label">Total outstanding</div><div class="value" id="total">-</div></div>
+      <div class="card stat"><div class="label">Customers</div><div class="value" id="count">-</div></div>
+      <div class="card stat"><div class="label">Customers who owe</div><div class="value" id="owing">-</div></div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h2>Top debtors</h2>
+        <div id="debtors"></div>
+      </div>
+      <div class="card">
+        <h2>Recent transactions</h2>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>When</th><th>Customer</th><th>Type</th><th>Item</th><th class="num">Amount</th></tr></thead>
+            <tbody id="recent"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Customer balances</h2>
+      <input id="search" type="text" placeholder="Search customer..." style="margin-bottom:10px">
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Customer</th><th>Status</th><th class="num">Balance</th></tr></thead>
+          <tbody id="balances"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
+  const fmt = (v) => money.format(Number(v));
+  const IST = "Asia/Kolkata";
+  let balances = [];
+  let timer = null;
+
+  // Names and items come from WhatsApp messages, so they are always inserted as text, never as HTML.
+  function el(tag, text, className) {
+    const node = document.createElement(tag);
+    if (text !== undefined && text !== null) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+
+  function emptyRow(tbody, cols, message) {
+    const tr = el("tr");
+    const td = el("td", message, "empty");
+    td.colSpan = cols;
+    tr.append(td);
+    tbody.append(tr);
+  }
+
+  function showLogin(message) {
+    clearInterval(timer);
+    $("app").hidden = true;
+    $("login").hidden = false;
+    $("loginError").textContent = message || "";
+  }
+
+  function render(d) {
+    $("total").textContent = fmt(d.total_outstanding);
+    $("count").textContent = d.customer_count;
+    $("owing").textContent = d.customers_owing;
+    $("updated").textContent = "Updated " +
+      new Date(d.generated_at).toLocaleTimeString("en-IN", { timeZone: IST });
+
+    // Top debtors with simple bars
+    const box = $("debtors");
+    box.replaceChildren();
+    if (!d.top_debtors.length) box.append(el("div", "Nobody owes anything right now.", "empty"));
+    const max = Math.max(...d.top_debtors.map((x) => Number(x.balance)), 1);
+    for (const x of d.top_debtors) {
+      const wrap = el("div", null, "debtor");
+      const row = el("div", null, "row");
+      row.append(el("span", x.name), el("strong", fmt(x.balance)));
+      const track = el("div", null, "track");
+      const fill = el("div", null, "fill");
+      fill.style.width = (Number(x.balance) / max) * 100 + "%";
+      track.append(fill);
+      wrap.append(row, track);
+      box.append(wrap);
+    }
+
+    // Recent transactions
+    const tb = $("recent");
+    tb.replaceChildren();
+    if (!d.recent_transactions.length) emptyRow(tb, 5, "No transactions yet.");
+    for (const t of d.recent_transactions) {
+      const tr = el("tr");
+      const when = new Date(t.created_at).toLocaleString("en-IN", {
+        timeZone: IST, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+      });
+      const typeCell = el("td");
+      typeCell.append(el("span", t.type, "badge " + t.type));
+      tr.append(el("td", when), el("td", t.customer), typeCell, el("td", t.item || "-"),
+                el("td", fmt(t.amount), "num"));
+      tb.append(tr);
+    }
+
+    balances = d.balances;
+    renderBalances();
+  }
+
+  function renderBalances() {
+    const q = $("search").value.trim().toLowerCase();
+    const tb = $("balances");
+    tb.replaceChildren();
+    const rows = balances.filter((b) => b.name.toLowerCase().includes(q));
+    if (!rows.length) emptyRow(tb, 3, "No matching customers.");
+    for (const b of rows) {
+      const v = Number(b.balance);
+      const status = v > 0 ? "Owes" : v < 0 ? "Paid in advance" : "Settled";
+      const tr = el("tr");
+      tr.append(el("td", b.name), el("td", status, "muted"), el("td", fmt(Math.abs(v)), "num"));
+      tb.append(tr);
+    }
+  }
+
+  async function load() {
+    const token = sessionStorage.getItem("dashToken");
+    if (!token) return showLogin();
+
+    let res;
+    try {
+      res = await fetch("/api/dashboard", { headers: { Authorization: "Bearer " + token } });
+    } catch (err) {
+      if ($("app").hidden) return showLogin("Could not reach the server.");
+      $("updated").textContent = "Could not refresh - will retry";
+      return;
+    }
+    if (res.status === 401) {
+      sessionStorage.removeItem("dashToken");
+      return showLogin("Wrong token.");
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return showLogin(body.detail || "Something went wrong.");
+    }
+
+    render(await res.json());
+    $("login").hidden = true;
+    $("app").hidden = false;
+    clearInterval(timer);
+    timer = setInterval(load, 30000);  // refresh every 30 seconds
+  }
+
+  $("loginBtn").addEventListener("click", () => {
+    const value = $("token").value.trim();
+    if (!value) return;
+    sessionStorage.setItem("dashToken", value);  // cleared when the tab closes
+    $("token").value = "";
+    load();
+  });
+  $("token").addEventListener("keydown", (e) => { if (e.key === "Enter") $("loginBtn").click(); });
+  $("refreshBtn").addEventListener("click", load);
+  $("logoutBtn").addEventListener("click", () => { sessionStorage.removeItem("dashToken"); showLogin(); });
+  $("search").addEventListener("input", renderBalances);
+
+  load();
+</script>
+</body>
+</html>

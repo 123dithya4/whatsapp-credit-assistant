@@ -4,7 +4,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import case, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models import Customer, Transaction, TransactionType
 from app.schemas import BalanceRead, TransactionCreate
@@ -281,3 +281,27 @@ def get_overdue(db: Session, min_days: int = 7, now: datetime | None = None) -> 
         if days >= min_days:
             result.append(OverdueBalance(customer.id, customer.name, balance, since, days))
     return sorted(result, key=lambda o: o.days, reverse=True)
+
+def get_all_balances(db: Session) -> list[BalanceRead]:
+    """Every customer with their balance, biggest debt first (zero balances included)."""
+    owed = func.coalesce(func.sum(_signed_amount()), 0)
+    stmt = (
+        select(Customer.id, Customer.name, owed)
+        .outerjoin(Transaction, Transaction.customer_id == Customer.id)
+        .group_by(Customer.id, Customer.name)
+        .order_by(owed.desc(), Customer.name)
+    )
+    return [
+        BalanceRead(customer_id=cid, name=name, balance=_money(total))
+        for cid, name, total in db.execute(stmt)
+    ]
+
+
+def get_recent_transactions(db: Session, limit: int = 15) -> list[Transaction]:
+    stmt = (
+        select(Transaction)
+        .options(joinedload(Transaction.customer))
+        .order_by(Transaction.created_at.desc())
+        .limit(limit)
+    )
+    return list(db.scalars(stmt))
