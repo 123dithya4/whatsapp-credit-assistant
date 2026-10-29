@@ -10,18 +10,13 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.services import transactions as ledger
+from app.security import require_token
 
 router = APIRouter(tags=["dashboard"])
 
 PAGE = Path(__file__).resolve().parent.parent / "static" / "dashboard.html"
 
 
-def require_token(authorization: str = Header(default="")) -> None:
-    if not settings.dashboard_token:
-        raise HTTPException(status_code=503, detail="Dashboard is disabled. Set DASHBOARD_TOKEN in .env to enable it.")
-    supplied = authorization.removeprefix("Bearer ").strip()
-    if not secrets.compare_digest(supplied.encode(), settings.dashboard_token.encode()):
-        raise HTTPException(status_code=401, detail="Invalid dashboard token")
 
 
 def _utc_iso(dt: datetime) -> str:

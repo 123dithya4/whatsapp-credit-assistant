@@ -209,7 +209,7 @@ def parse_message(text: str) -> ParsedMessage:
 
     message = response.choices[0].message
     parsed = ParsedMessage(reply=message.content)
-    logger.info("LLM tool calls: %s", [(tc.function.name, tc.function.arguments) for tc in message.tool_calls or []])
+    logger.debug("LLM tool calls: %s", [(tc.function.name, tc.function.arguments) for tc in message.tool_calls or []])
 
     for tc in message.tool_calls or []:
         model = ARG_MODELS.get(tc.function.name)

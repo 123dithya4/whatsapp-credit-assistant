@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     reminder_minute: int = 0
     reminder_after_days: int = 7
     dashboard_token: str = ""
-
+    environment: str = "development"
+    database_url: str = "sqlite:///./credit_assistant.db"
+    log_level: str = "INFO"
+    allowed_senders: str = ""
 
 settings = Settings()

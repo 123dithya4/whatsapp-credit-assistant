@@ -74,6 +74,11 @@ async def _safe_reply(db: Session, func, *args) -> str:
         db.rollback()
         return "⚠️ Something went wrong on my side. Please try again in a minute."
 
+def _is_allowed(sender: str) -> bool:
+    allowed = {s.strip() for s in settings.allowed_senders.split(",") if s.strip()}
+    if not allowed:
+        return settings.environment != "production"  # production with no list = nobody
+    return sender in allowed
 
 @router.post("/webhook")
 async def whatsapp_webhook(request: Request, db: Session = Depends(get_db)):
@@ -84,6 +89,11 @@ async def whatsapp_webhook(request: Request, db: Session = Depends(get_db)):
     body = (params.get("Body") or "").strip()
     profile_name = str(params.get("ProfileName", ""))
     sender = str(params.get("From", ""))
+
+    if not _is_allowed(sender):
+        logger.warning("Rejected message from unauthorised sender ...%s", sender[-4:])
+        return _twiml("Sorry, this number is not authorised to use this assistant.")
+    
     num_media = int(params.get("NumMedia") or 0)
     logger.info("WhatsApp message from ...%s (media=%s)", sender[-4:], num_media)
 

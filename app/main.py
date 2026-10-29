@@ -1,19 +1,20 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
+from app.config import settings
+
+logging.basicConfig(level=settings.log_level.upper(), format="%(levelname)s:     %(name)s - %(message)s")
 
 from app import models  # noqa: E402,F401  (registers the tables)
-from app.config import settings  # noqa: E402
 from app.database import Base, engine  # noqa: E402
 from app.routes import assistant, customers, dashboard, transactions, whatsapp  # noqa: E402
+from app.security import require_token_in_production  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 Base.metadata.create_all(bind=engine)
-
 
 
 @asynccontextmanager
@@ -31,13 +32,22 @@ async def lifespan(app: FastAPI):
         scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="WhatsApp Credit Assistant", lifespan=lifespan)
+PRODUCTION = settings.environment == "production"
 
-app.include_router(assistant.router)
-app.include_router(customers.router)
-app.include_router(dashboard.router)
-app.include_router(transactions.router)
-app.include_router(whatsapp.router)
+app = FastAPI(
+    title="WhatsApp Credit Assistant",
+    lifespan=lifespan,
+    docs_url=None if PRODUCTION else "/docs",
+    redoc_url=None if PRODUCTION else "/redoc",
+    openapi_url=None if PRODUCTION else "/openapi.json",
+)
+
+protected = [Depends(require_token_in_production)]
+app.include_router(assistant.router, dependencies=protected)
+app.include_router(customers.router, dependencies=protected)
+app.include_router(transactions.router, dependencies=protected)
+app.include_router(dashboard.router)  # data endpoint has its own token check
+app.include_router(whatsapp.router)   # verified by Twilio's signature
 
 
 @app.get("/health")
