@@ -12,6 +12,10 @@ from app.database import get_db
 from app.services import speech
 from app.services.assistant import EMPTY_TEXT, reply_to_text, reply_to_voice
 
+from sqlalchemy.exc import IntegrityError
+
+from app.models import ProcessedMessage
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 
@@ -80,6 +84,16 @@ def _is_allowed(sender: str) -> bool:
         return settings.environment != "production"  # production with no list = nobody
     return sender in allowed
 
+def _claim_message(db: Session, sid: str) -> bool:
+    """True the first time Twilio's message ID is seen; False for a retry of the same message."""
+    try:
+        db.add(ProcessedMessage(sid=sid))
+        db.commit()
+        return True
+    except IntegrityError:
+        db.rollback()
+        return False
+
 @router.post("/webhook")
 async def whatsapp_webhook(request: Request, db: Session = Depends(get_db)):
     form = await request.form()
@@ -93,6 +107,11 @@ async def whatsapp_webhook(request: Request, db: Session = Depends(get_db)):
     if not _is_allowed(sender):
         logger.warning("Rejected message from unauthorised sender ...%s", sender[-4:])
         return _twiml("Sorry, this number is not authorised to use this assistant.")
+
+    sid = str(params.get("MessageSid", ""))
+    if sid and not _claim_message(db, sid):
+        logger.info("Ignoring a retry of message ...%s", sid[-6:])
+        return Response(content=str(MessagingResponse()), media_type="application/xml")
     
     num_media = int(params.get("NumMedia") or 0)
     logger.info("WhatsApp message from ...%s (media=%s)", sender[-4:], num_media)

@@ -57,3 +57,10 @@ class PendingClarification(Base):
     sender: Mapped[str] = mapped_column(String(50), index=True)
     original_text: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+class ProcessedMessage(Base):
+    __tablename__ = "processed_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sid: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
