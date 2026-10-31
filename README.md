@@ -189,9 +189,9 @@ Add screenshots of the actual application in these sections.
 |---|---|
 | ![Text transaction](docs/chat.png) | ![Voice interaction](docs/voice.png) |
 
-| WhatsApp queries | Web dashboard |
-|---|---|
-| ![WhatsApp queries](docs/credit.png) 
+|  Web dashboard |
+
+| ![WhatsApp queries](docs/credit.png) |
 
 *Update the image paths if your screenshot filenames are different.*
 
