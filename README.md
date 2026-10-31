@@ -183,17 +183,16 @@ Bot: Heard:
 
 ## Screenshots
 
-Add screenshots of the actual application in these sections.
 
 | WhatsApp text interaction | WhatsApp voice interaction |
 |---|---|
 | ![Text transaction](docs/chat.png) | ![Voice interaction](docs/voice.png) |
 
 |  Web dashboard |
-
+|---|
 | ![WhatsApp queries](docs/credit.png) |
 
-*Update the image paths if your screenshot filenames are different.*
+
 
 ## Setup Instructions
 
